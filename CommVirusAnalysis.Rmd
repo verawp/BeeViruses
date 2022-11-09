@@ -1,0 +1,564 @@
+---
+title: "CommVirusAnalysis"
+author: "Vera Pfeiffer"
+date: "7/23/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Community virus co-variance
+
+This paper assesses the co-variance of bee viruses between honey bees and bumble bees.
+
+
+```{r}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(sp)
+library(sf)
+library(rgdal)
+library(ggplot2)
+library(ggmap)
+
+
+setwd("~/Documents/BeeViruses/HBViruses")
+Sites<-st_read("DataAnalysis/SitesPrj")
+Sites$SiteCode
+
+any(duplicated(Sites$SiteCode))
+which(duplicated(Sites$SiteCode))
+```
+
+## Load HB and BB viruses data
+
+```{r}
+library(stringr)
+
+setwd("~/Documents/BeeViruses/CommunityViruses")
+CommVirus<-read.csv("DataAnalysis/CommViruses.csv")
+
+Site<-strsplit(as.character(CommVirus$Code),"-")
+SiteC<-as.character(lapply(Site, `[[`, 1))
+CommVirus<-cbind(SiteC,CommVirus)
+
+HBVirus<-CommVirus[which(CommVirus$BeeSp=="Apis_mellifera"),c("SiteC","Code","IAPV.158","DWV.269","SBV.342","ABPV.460","BQCV.536","CBPV.774")]
+
+BBVirus<-CommVirus[which(CommVirus$BeeSp=="Bombus"),c("SiteC","Code","IAPV.158","DWV.269","SBV.342","ABPV.460","BQCV.536","CBPV.774")]
+
+BeeVirus<-CommVirus[which(CommVirus$BeeSp=="Bombus"|CommVirus$BeeSp=="Apis_mellifera"),c("SiteC","Code","IAPV.158","DWV.269","SBV.342","ABPV.460","BQCV.536","CBPV.774")]
+```
+
+
+Here are the number of positive tests for each virus, total,
+
+```{r, echo=TRUE}
+sum(HBVirus$IAPV.158, na.rm = TRUE) #6
+sum(HBVirus$DWV.269, na.rm = TRUE) #92
+sum(HBVirus$SBV.342, na.rm = TRUE) #65
+sum(HBVirus$ABPV.460, na.rm = TRUE) #1
+sum(HBVirus$BQCV.536, na.rm = TRUE) #97
+sum(HBVirus$CBPV.774, na.rm = TRUE) #20/257 = 
+
+sum(BBVirus$IAPV.158, na.rm = TRUE) #34
+sum(BBVirus$DWV.269, na.rm = TRUE) #40
+sum(BBVirus$SBV.342, na.rm = TRUE) #0
+sum(BBVirus$ABPV.460, na.rm = TRUE) #0
+sum(BBVirus$BQCV.536, na.rm = TRUE) #27
+sum(BBVirus$CBPV.774, na.rm = TRUE) #2/809 =
+
+```
+
+And the number of positive tests by site
+
+
+```{r, echo=TRUE}
+library(dplyr)
+HBVirusR<-HBVirus
+HBVirusR[is.na(HBVirus)] = 0
+HBVirusCol<- HBVirusR %>%
+  group_by(SiteC) %>%
+  summarise(IAPV.158 = max(IAPV.158), DWV.269 = max(DWV.269), SBV.342 = max(SBV.342), ABPV.460 = max(ABPV.460), BQCV.536 = max(BQCV.536), CBPV.774 = max(CBPV.774), na.rm=TRUE)
+
+HBVirusCol2 <- HBVirusR %>% 
+  group_by(SiteC) %>% 
+  summarise(HBIAPV.158p = sum(IAPV.158), HBIAPV.158n = length(IAPV.158)-sum(IAPV.158), HBIAPV.158Prop = sum(IAPV.158)/(length(IAPV.158)), HBDWV.269p = sum(DWV.269), HBDWV.269n = length(DWV.269)-sum(DWV.269), HBDWV.269Prop = sum(DWV.269)/(length(DWV.269)), HBSBV.342p = sum(SBV.342), HBSBV.342n = length(SBV.342)-sum(SBV.342), HBSBV.342Prop = sum(SBV.342)/(length(SBV.342)), HBABPV.460p = sum(ABPV.460), HBABPV.460n = length(ABPV.460)-sum(ABPV.460), HBABPV.460Prop = sum(ABPV.460)/(length(ABPV.460)), HBBQCV.536p = sum(BQCV.536), HBBQCV.536n = length(BQCV.536)-sum(BQCV.536), HBBQCV.536Prop = sum(BQCV.536)/(length(BQCV.536)), HBCBPV.774p = sum(CBPV.774), HBCBPV.774n = length(CBPV.774)-sum(CBPV.774), HBCBPV.774Prop = sum(CBPV.774)/(length(CBPV.774)), na.rm=TRUE)
+
+
+BBVirusR<-BBVirus
+BBVirusR[is.na(BBVirus)] = 0
+BBVirusCol<- BBVirusR %>%
+  group_by(SiteC) %>%
+  summarise(IAPV.158 = max(IAPV.158), DWV.269 = max(DWV.269), SBV.342 = max(SBV.342), ABPV.460 = max(ABPV.460), BQCV.536 = max(BQCV.536), CBPV.774 = max(CBPV.774), na.rm=TRUE)
+
+BBVirusCol2 <- BBVirusR %>% 
+  group_by(SiteC) %>% 
+  summarise(IAPV.158p = sum(IAPV.158), IAPV.158n = length(IAPV.158)-sum(IAPV.158), IAPV.158Prop = sum(IAPV.158)/(length(IAPV.158)), DWV.269p = sum(DWV.269), DWV.269n = length(DWV.269)-sum(DWV.269), DWV.269Prop = sum(DWV.269)/(length(DWV.269)), SBV.342p = sum(SBV.342), SBV.342n = length(SBV.342)-sum(SBV.342), SBV.342Prop = sum(SBV.342)/(length(SBV.342)), ABPV.460p = sum(ABPV.460), ABPV.460n = length(ABPV.460)-sum(ABPV.460), ABPV.460Prop = sum(ABPV.460)/(length(ABPV.460)), BQCV.536p = sum(BQCV.536), BQCV.536n = length(BQCV.536)-sum(BQCV.536), BQCV.536Prop = sum(BQCV.536)/(length(BQCV.536)), CBPV.774p = sum(CBPV.774), CBPV.774n = length(CBPV.774)-sum(CBPV.774), CBPV.774Prop = sum(CBPV.774)/(length(CBPV.774)), na.rm=TRUE)
+
+
+sum(HBVirusCol$IAPV.158, na.rm = TRUE) #6
+sum(HBVirusCol$DWV.269, na.rm = TRUE) #47
+sum(HBVirusCol$SBV.342, na.rm = TRUE) #36
+sum(HBVirusCol$ABPV.460, na.rm = TRUE) #1
+sum(HBVirusCol$BQCV.536, na.rm = TRUE) #52
+sum(HBVirusCol$CBPV.774, na.rm = TRUE) #12/86
+
+sum(BBVirusCol$IAPV.158, na.rm = TRUE) #12
+sum(BBVirusCol$DWV.269, na.rm = TRUE) #9
+sum(BBVirusCol$SBV.342, na.rm = TRUE) #0
+sum(BBVirusCol$ABPV.460, na.rm = TRUE) #0
+sum(BBVirusCol$BQCV.536, na.rm = TRUE) #12
+sum(BBVirusCol$CBPV.774, na.rm = TRUE) #2/87
+
+
+#names(BBVirusCol)<-c("SiteC","BB.IAPV.158","BB.DWV.269","BB.SBV.342","BB.ABPV.460","BB.BQCV.536","BB.CBPV.774","na.rm")
+
+#names(HBVirusCol)<-c("SiteC","HB.IAPV.158","HB.DWV.269","HB.SBV.342","HB.ABPV.460","HB.BQCV.536","HB.CBPV.774","na.rm")
+
+CommVirData<- HBVirusCol2 %>% full_join(BBVirusCol2)
+#CommVirData<-CommVirData[,-8]
+```
+
+To check the correlation between HB and BBs for each virus overall...
+```{r, echo=FALSE}
+library("Hmisc")
+
+HBBBProps<-CommVirData[,c(4,7,10,13,16,19,23,26,29,32,35,38)]
+rcorr(as.matrix(HBBBProps), type = c("pearson"))
+```
+
+
+To check the correlation between HB and BBs for each virus in urban and commercial sites...
+```{r, echo=FALSE}
+#UrbanSites <- allbeevirusPts$SiteCode[allbeevirusPts$Landscape=="Urban"]
+#UrbHBBBProps <- CommVirData[!CommVirData$SiteC %in% UrbanSites, ]
+#UrbHBBBProps <- CommVirData[CommVirData$SiteC %in% UrbanSites, c(4,7,10,13,16,19,23,26,29,32,35,38)]
+#rcorr(as.matrix(UrbHBBBProps), type = c("pearson"))
+
+#CommSites <- allbeevirusPts$SiteCode[allbeevirusPts$Apiary=="Commercial"]
+#CommHBBBProps <- CommVirData[CommVirData$SiteC %in% CommSites, c(4,7,10,13,16,19,23,26,29,32,35,38)]
+#rcorr(as.matrix(CommHBBBProps), type = c("pearson"))
+#CommVirData
+```
+
+Map
+```{r, echo=FALSE}
+
+#install.packages("viridis")  # Install
+library("viridis") 
+library(ggmap)
+
+all(CommVirData$SiteC %in% Sites$SiteCode)
+
+# Merge HBSites and HBVirusR: beevirusPts
+allbeevirusPts<-merge(Sites,BBreg, by.x="SiteCode", by.y="SiteCode")
+plot(allbeevirusPts)
+
+map <- get_stamenmap(c(left = -124.9, bottom = 45.2, right = -115.5, top = 48.9), zoom = 6, maptype = c("toner-lite"))
+ggmap(map) +
+  geom_point(aes(Longitude, Latitude, color = RegionalDensity), data = BBvirusPts2)
+ggmap(map) +
+  geom_point(aes(Longitude, Latitude), data = BBvirusPts2)
+
+
+#BB_IAPVmap
+ggmap(map) +
+  geom_point(aes(Longitude, Latitude, color = IAPV.158Prop), data = allbeevirusPts)
+
+#BB_DWVmap
+ggmap(map) +
+  geom_point(aes(Longitude, Latitude, color = DWV.269Prop), data = allbeevirusPts)
+
+#BB_BQCVmap
+ggmap(map) +
+  geom_point(aes(Longitude, Latitude, color = BQCV.536Prop), data = allbeevirusPts)
+
+
+#HB_IAPVmap
+ggmap(map) +
+  geom_point(aes(Longitude, Latitude, color = HBIAPV.158Prop), data = allbeevirusPts)
+
+#HB_DWVmap
+ggmap(map) +
+  geom_point(aes(Longitude, Latitude, color = HBDWV.269Prop), data = allbeevirusPts)
+
+#HB_BQCVmap
+ggmap(map) +
+  geom_point(aes(Longitude, Latitude, color = HBBQCV.536Prop), data = allbeevirusPts)
+
+```
+
+To check the correlation between HB and BBs for each virus by landscape subset...
+```{r, echo=FALSE}
+library("Hmisc")
+
+UrbanVirData<-allbeevirusPts[which(allbeevirusPts$Landscape=="Urban"),]
+UrbanVirMat<-as.data.frame(UrbanVirData[38:49])
+rcorr(as.matrix(UrbanVirMat[,1:12]), type = c("pearson"))
+
+
+RuralPollVirData<-allbeevirusPts[which(allbeevirusPts$Landscape=="Agricultural"|allbeevirusPts$Ecotype=="Steppe"),]
+RuralPollVirData<-RuralPollVirData[which(RuralPollVirData$Apiary=="Commercial"),]
+RuralPollVirMat<-as.data.frame(RuralPollVirData[38:49])
+rcorr(as.matrix(RuralPollVirMat[,1:12]), type = c("pearson"))
+
+```
+
+
+
+logistic regression to predict BB viruses...
+```{r, echo=FALSE}
+head(BBVirusR)
+names(BBVirusR)<-c("SiteC","Code","BB.IAPV.158","BB.DWV.269","BB.SBV.342","BB.ABPV.460","BB.BQCV.536","BB.CBPV.774")
+#BBvirusPts<-merge(Sites,BBVirusCol2, by.x="SiteCode", by.y="SiteC")
+#BBvirusPts2<-BBvirusPts[-is.na(BBvirusPts$IAPV.158Prop),]
+#BBvirusPts2<-BBvirusPts
+
+BBvirusPts<-merge(Sites,CommVirData, by.x="SiteCode", by.y="SiteC")
+#BBvirusPts2<-allbeevirusPts[-is.na(allbeevirusPts$IAPV.158Prop),]
+BBvirusPts2<-BBvirusPts
+
+
+BBvirusPts2$Urban<-0
+BBvirusPts2$Urban[which(BBvirusPts2$Landscape=="Urban")]<-1
+
+BBvirusPts2$Commercial<-0
+BBvirusPts2$Commercial[which(BBvirusPts2$Apiary=="Commercial")]<-1
+
+BBvirusPts2$Forest<-0
+BBvirusPts2$Forest[which(BBvirusPts2$Ecotype=="Forest")]<-1
+
+library(aod)
+#BBreg<-BBvirusPts2[,c(1,40,43,51,56,57,58,59,60,61,68,69,70,75,76,77)]
+BBreg<-BBvirusPts2[,c(1,38:74,76:78)]
+#contingency table to check for NAs
+xtabs(~IAPV.158Prop + Urban, data = BBreg)
+xtabs(~DWV.269Prop + Commercial, data = BBreg)
+xtabs(~BQCV.536Prop + Forest, data = BBreg)
+
+
+
+library(tidyr)
+BBregNA<-BBreg %>% drop_na() #101 goes to 71
+
+IAPVpos<-BBregNA$HBIAPV.158Prop[which(BBregNA$HBIAPV.158Prop>0)]
+DWVpos<-BBregNA$HBDWV.269Prop[which(BBregNA$HBDWV.269Prop>0)]
+BQCVpos<-BBregNA$HBBQCV.536Prop[which(BBregNA$HBBQCV.536Prop>0)]
+
+InfectionRate<-c(BQCVpos,DWVpos,IAPVpos)
+Virus<-c(rep("BQCV",length(BQCVpos)),rep("DWV",length(DWVpos)),rep("IAPV",length(IAPVpos)))
+
+inf<-cbind(Virus,InfectionRate)
+
+
+# Fit and plot regression for IAPV
+
+myIAPVlogit <- glm(cbind(IAPV.158p,IAPV.158n) ~ HBIAPV.158Prop + Urban + Commercial, data = BBregNA, family = "binomial", na.action = na.fail)
+summary(myIAPVlogit)
+exp(cbind(OR = coef(myIAPVlogit), confint(myIAPVlogit)))
+
+LogORmat<-cbind(OR = coefTable(myIAPVlogit)[,1], lse = coefTable(myIAPVlogit)[,1]-coefTable(myIAPVlogit)[,2], hse = coefTable(myIAPVlogit)[,1]+coefTable(myIAPVlogit)[,2])
+LogORmat<-as.data.frame(LogORmat)
+LogORmat$names<-row.names(LogORmat)
+names(LogORmat)<-c("logOdds","lse","hse","names")
+
+LogORmat %>%
+  ggplot(aes(x=names, y=logOdds)) + 
+    geom_col() +
+    geom_errorbar(aes(ymin=lse, ymax=hse, width=.1))
+
+
+library(MuMIn)
+IAPVavg <- dredge(myIAPVlogit, rank = "AICc")
+ma <- model.avg(IAPVavg, subset = cumsum(weight) <= .95)
+bw <- Weights(ma)
+LogORmat<-cbind(OR = coef(ma), confint(ma))
+LogORmat<-as.data.frame(LogORmat)
+LogORmat$names<-c("Intercept", "Urban", "HBIAPV", "Commercial")
+names(LogORmat)<-c("logOdds","lse","hse","names")
+
+# Standard error of the mean
+LogORmat %>%
+  arrange(names) %>%    # First sort by val. This sorts the dataframe but NOT the factor levels
+  mutate(names=factor(names, levels=names)) %>%   # This trick update the factor levels
+  ggplot(aes(x=names, y=logOdds)) + 
+    geom_col() +
+    geom_errorbar(aes(ymin=lse, ymax=hse, width=.1))
+
+                  
+
+
+# Fit and plot regression for DWV
+myDWVlogit <- glm(cbind(DWV.269p,DWV.269n) ~ HBDWV.269Prop + Urban + Commercial, data = BBregNA, family = "binomial", na.action = na.fail)
+summary(myDWVlogit)
+ORMat<-exp(cbind(OR = coef(myDWVlogit), confint(myDWVlogit)))
+
+LogORmat<-cbind(OR = coefTable(myDWVlogit)[,1], lse = coefTable(myDWVlogit)[,1]-coefTable(myDWVlogit)[,2], hse = coefTable(myDWVlogit)[,1]+coefTable(myDWVlogit)[,2])
+LogORmat<-as.data.frame(LogORmat)
+LogORmat$names<-row.names(LogORmat)
+names(LogORmat)<-c("logOdds","lse","hse","names")
+
+LogORmat %>%
+  ggplot(aes(x=names, y=logOdds)) + 
+    geom_col() +
+    geom_errorbar(aes(ymin=lse, ymax=hse, width=.1))
+
+library(MuMIn)
+DWVavg <- dredge(myDWVlogit, rank = "AICc")
+ma <- model.avg(DWVavg, subset = cumsum(weight) <= .95)
+bw <- Weights(ma)
+LogORmat<-cbind(OR = coef(ma), confint(ma))
+LogORmat<-as.data.frame(LogORmat)
+LogORmat$names<-c("Intercept", "Urban", "Commercial", "HBDWV")
+names(LogORmat)<-c("logOdds","lse","hse","names")
+
+# Standard error of the mean
+LogORmat %>%
+  ggplot(aes(x=names, y=logOdds)) + 
+    geom_col() +
+    geom_errorbar(aes(ymin=lse, ymax=hse, width=.1))
+                  
+
+
+
+
+
+# Fit and plot regression for BQCV
+myBQCVlogit <- glm(cbind(BQCV.536p,BQCV.536n) ~ HBBQCV.536Prop + Urban + Commercial, data = BBregNA, family = "binomial", na.action = na.fail)
+summary(myBQCVlogit)
+ORMat<-exp(cbind(OR = coef(myBQCVlogit), confint(myBQCVlogit)))
+
+LogORmat<-cbind(OR = coefTable(myBQCVlogit)[,1], lse = coefTable(myBQCVlogit)[,1]-coefTable(myBQCVlogit)[,2], hse = coefTable(myBQCVlogit)[,1]+coefTable(myBQCVlogit)[,2])
+LogORmat<-as.data.frame(LogORmat)
+LogORmat$names<-row.names(LogORmat)
+names(LogORmat)<-c("logOdds","lse","hse","names")
+
+LogORmat %>%
+  ggplot(aes(x=names, y=logOdds)) + 
+    geom_col() +
+    geom_errorbar(aes(ymin=lse, ymax=hse, width=.1))
+
+library(MuMIn)
+BQCVavg <- dredge(myBQCVlogit, rank = "AICc")
+ma <- model.avg(BQCVavg, subset = cumsum(weight) <= .95)
+bw <- Weights(ma)
+LogORmat<-cbind(OR = coef(ma), confint(ma))
+LogORmat<-as.data.frame(LogORmat)
+LogORmat$names<-c("Intercept", "HBBQCV", "Commercial", "Urban")
+names(LogORmat)<-c("logOdds","lse","hse","names")
+
+# Standard error of the mean
+LogORmat %>%
+  ggplot(aes(x=names, y=logOdds)) + 
+    geom_col() +
+    geom_errorbar(aes(ymin=lse, ymax=hse, width=.1))
+     
+
+
+
+
+                  
+#Make new data
+pd = data.frame(HBIAPV.158Prop = c(rep(0,4), rep(0.33,4), rep(0.66,4), rep(1,4)), Urban = rep(c(0,1),8), Commercial = rep(c(0,0,1,1),4))
+
+# use type = "response" for probability-scale predictions    
+preds = predict(myIAPVlogit, newdata = pd, type = "response", se.fit = TRUE)
+pd$fit = preds$fit
+pd$se = preds$se.fit
+
+ggplot(BBreg, aes(x = Urban, y = IAPV.158Prop)) +
+  geom_point(position = position_jitter(width = 0.05, height = 0.05)) +
+  geom_ribbon(data = pd, aes(y = fit, ymin = fit - 1.96 * se, ymax = fit + 1.96 * se),
+              fill = "blue", alpha = 0.3) +
+  geom_line(data = pd, aes(y = fit)) 
+
+
+
+
+
+
+
+
+#regression for BQCV co-occurance
+BBreg$BQCV_Co<-0
+BBreg$BQCV_Co[which(BBreg$BQCV.536Prop>0 & BBreg$HBBQCV.536Prop>0)]<-1
+
+length(unique(BBreg$SiteCode))
+survey<-read.csv("DataAnalysis/ApiarySurvey.csv")
+BHreg<-merge(BBreg,survey[,c(3,7,11,17,18)], by.x="SiteCode", by.y="SiteCode")
+
+# Fit and plot regression for BQCV
+CoBQCVlogit <- glm(BHreg$BQCV_Co ~ Urban + Commercial+ ActiveHives + RegionalDensity , data = BHreg, family = "binomial")
+summary(CoBQCVlogit)
+exp(cbind(OR = coef(CoBQCVlogit), confint(CoBQCVlogit)))
+
+CoBQCVlogit <- glm(BHreg$BQCV_Co ~ RegionalDensity , data = BHreg, family = "binomial")
+summary(CoBQCVlogit)
+ORMat<-exp(cbind(OR = coef(CoBQCVlogit), confint(CoBQCVlogit)))
+
+#Model averaging
+library(tidyr)
+library(dplyr)
+BHregSub<-cbind(Urban = BHreg$Urban,Commercial = BHreg$Commercial, ActiveHives = BHreg$ActiveHives, RegionalDensity = BHreg$RegionalDensity, BQCV_Co = BHreg$BQCV_Co)
+
+BHregNA<-BHregSub %>% drop_na()
+CoBQCVlogit <- glm(BHreg$BQCV_Co ~ Urban + Commercial+ ActiveHives + RegionalDensity , data = BHregNA, family = "binomial", na.action = na.fail) 
+summary(CoBQCVlogit)
+exp(cbind(OR = coef(CoBQCVlogit), confint(CoBQCVlogit)))
+
+
+library(MuMIn)
+CoBQavg <- dredge(CoBQCVlogit, rank = "AICc")
+ma <- model.avg(CoBQavg)
+bw <- Importance(CoBQavg)
+ORmat<-exp(cbind(OR = coef(ma), confint(ma)))
+ORmat<-as.data.frame(ORmat)
+ORmat$names<-c("Intercept", "RegionalDensity", "Urban", "ActiveHives", "Commercial")
+names(ORmat)<-c("OR","lse","hse","names")
+
+IAPVavg <- dredge(myIAPVlogit, rank = "AICc")
+ma <- model.avg(IAPVavg)
+bw <- Weights(ma)
+ORmat<-exp(cbind(OR = coef(ma), confint(ma)))
+ORmat<-as.data.frame(ORmat)
+ORmat$names<-c("Intercept", "Urban", "HBIAPV", "Commercial")
+names(ORmat)<-c("OR","lse","hse","names")
+
+#Make new data
+pd = data.frame(BQCV_Co = c(rep(0,4), rep(1,4)), RegionalDensity = rep(c(1,2,3,4),2))
+
+# use type = "response" for probability-scale predictions    
+preds = predict(CoBQCVlogit, newdata = pd, type = "response", se.fit = TRUE)
+pd$fit = preds$fit
+pd$se = preds$se.fit
+
+ggplot(BHreg, aes(x = RegionalDensity, y = BQCV_Co)) +
+         ylab("Co-occurrence") +
+  xlab("Regional density of honey bee apiaries") +
+  geom_point(position = position_jitter(width = 0.05, height = 0.05)) +
+  geom_ribbon(data = pd, aes(y = fit, ymin = fit - 1.96 * se, ymax = fit + 1.96 * se),
+              fill = "blue", alpha = 0.3) +
+  geom_line(data = pd, aes(y = fit)) 
+
+
+
+ggplot(newdata3, aes(x = gre, y = PredictedProb)) + geom_ribbon(aes(ymin = LL,
+    ymax = UL, fill = rank), alpha = 0.2) + geom_line(aes(colour = rank),
+    size = 1)
+
+
+mylogit <- glm(BB.DWV.269 ~ Urban + Commercial, data = BBreg, family = "binomial")
+exp(cbind(OR = coef(mylogit), confint(mylogit)))
+
+mylogit <- glm(BB.IAPV.158 ~ Urban + Commercial, data = BBreg, family = "binomial")
+exp(cbind(OR = coef(mylogit), confint(mylogit)))
+
+
+```
+
+
+Add some variability to BB points to prepare for spatial regression
+```{r, echo=FALSE}
+coords<-st_coordinates(BBvirusPts$geometry)
+
+BBvirusPts$Xcoord<-coords[,1]
+Xrerr<-rnorm(805,0,100)
+BBvirusPts$Xcoord<-BBvirusPts$Xcoord+Xrerr
+
+BBvirusPts$Ycoord<-coords[,2]
+Yrerr<-rnorm(805,0,100)
+BBvirusPts$Ycoord<-BBvirusPts$Ycoord+Yrerr
+
+coords[,1]<-BBvirusPts$Xcoord
+coords[,2]<-BBvirusPts$Ycoord
+
+knn<-knearneigh(coords,50)
+nb<-knn2nb(knn)
+
+```
+
+
+Spatial regression to predict BB viruses...
+Method follows https://www.youtube.com/watch?v=b3HtV2Mhmvk
+```{r, echo=FALSE}
+head(BBVirusR)
+
+install.packages("spdep")
+install.packages("rgdal")
+install.packages("rgeos")
+
+library("spdep")
+library("rgdal")
+library("rgeos")
+
+
+nb.listw=nb2listw(nb)
+
+#define our regression equation
+reg.eq1= BBvirusPts$BB.IAPV.158~BBvirusPts$Commercial+BBvirusPts$Urban
+
+options(scipen=7)
+
+reg1 = glm(reg.eq1,data=BBvirusPts)
+summary(reg1)
+
+#Morans correlation test designed for regression residuals - you give it a spatial relations matrix of choice
+lm.morantest(reg1,nb.listw)
+
+#La grange multiplier test
+#lm.LMtests(reg1,nb.listw,test="all")
+lm.LMtests(reg1,nb.listw,test=c("LMerr","LMlag", "RLMerr", "RLMlag", "SARMA"))
+
+#"LMerr" - testing to see how much our model would improve if we ran a spatial error model - the p value suggests a spatial error model would improve the fit.
+
+#"LMlag" - testing to see how much our model would improve if we ran a spatial lag model - the p value suggests a spatial lag model would improve the fit.
+
+#"RLMerr" - this is a Robust la grange multiplier tests, seeing if a error model would improve the fit, but trying to filter out some of the false positives - because a lag model can be a false positive for an error, and vice versa because there are some similarities in their fitting
+
+#"RLMlag" - compare the p value with the one above to see which one we should run
+
+#"SARMA" - R is not capable of running a SARMA model
+
+
+
+
+
+#p=rho, T=theta, L=lambda
+#SAR Spatial lag (autoregressive) model y=pWy + xB + E
+reg3 = lagsarlm(reg.eq1, data=BBvirusPts, nb.listw)
+
+#Anything with a Lag Y in it: You cannot interpret betas as marginal effects
+#You must use the impacts command
+impacts(reg3, listw=nb.listw)
+#The direct effect is the when we increase our impact by the marginal value, while the indirect impact is the effect if all our neighbors increased their behaviour, or the total effect of our increase on all our neighbors
+
+summary(impacts(reg3, listw=nb.listw, R=500),zstats=TRUE) #Add zstats,pvalues
+
+#Also,
+
+#Spatial error model
+reg4=errorsarlm(reg.eq1.data=BBvirusPts, nb.listw)
+
+#Lambda value - that tells us the effect of a stochastic shock to our neighbors - you can use the normal estimates, the effects are only to the residuals
+
+#Spatial Hausman test (Pace and LeSage)
+#Original 1978 - Hausman - if you have two choices between models including fixed effects or not... the problem is if you don't include the fixed effects it will cause bias. If you leave out the fixed effects
+
+#Comparing OLS to spatial error model
+#since the structure of the spatial noise is only in the #residuals - it's a spatial autocorrelation issue - it should #not bias the parameters if you estimate with OLS, it's just #that the spatial errors will be corrected in the spatial #error model. If they are very different - it suggests that #neither model is correct, and there could be spatial #dependence that is not captured.
+
+Hausman.test(reg4)
+#if significant, OLS and spatial error are probably both wrong.
+
+```
+
+Spatial autocorrelation
+```{r, echo=FALSE}
+
+library(ncf)
+ncf.cor <- correlog(coords[,1], coords[,2], BBvirusPts$BB.IAPV.158, increment=500, resamp=100)
+```
+
+
